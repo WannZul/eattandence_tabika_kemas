@@ -1,9 +1,5 @@
 <?php
-
-$conn = mysqli_connect("localhost","root","","face_attendance");
-
-if(!$conn){
-    die("Connection Failed : ".mysqli_connect_error());
-}
-
-?>
+declare(strict_types=1);
+// Compatibility wrapper for older integrations. New pages load app/bootstrap.php.
+require_once __DIR__ . '/app/database.php';
+$conn = db();
