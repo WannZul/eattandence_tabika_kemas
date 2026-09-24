@@ -1,47 +1,6 @@
 <?php
-session_start();
-
-if(!isset($_SESSION['username'])){
-    header("Location: login.php");
-    exit();
-}
-
-?>
-
-<!DOCTYPE html>
-<html>
-<head>
-<title>Teacher Dashboard</title>
-</head>
-
-<body>
-
-<h1>
-Selamat Datang Teacher
-</h1>
-
-<p>
-Username: 
-<?php echo $_SESSION['username']; ?>
-</p>
-
-
-<a href="attendance.php">
-Rekod Kehadiran
-</a>
-
-<br>
-
-<a href="report.php">
-Laporan Kehadiran
-</a>
-
-<br>
-
-<a href="logout.php">
-Logout
-</a>
-
-
-</body>
-</html>
+declare(strict_types=1);
+require_once __DIR__ . '/app/bootstrap.php';
+require_auth(['teacher']);
+flash('info', 'Paparan guru kini menggunakan Dashboard bersama dengan akses mengikut peranan.');
+redirect('dashboard.php');

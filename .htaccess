@@ -1,0 +1,31 @@
+DirectoryIndex index.php
+Options -Indexes
+
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{REQUEST_METHOD} ^(TRACE|TRACK)$ [NC]
+    RewriteRule .* - [F,L]
+    RewriteRule ^(?:app|storage|kiosk_cache|dataset)(?:/|$) - [F,L,NC]
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+</IfModule>
+
+<FilesMatch "(^\.|\.(?:sql|md|py|bat|ini|log|env|example)$|^(?:composer\.(?:json|lock)|requirements\.txt)$)">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    Header always set Permissions-Policy "camera=(self), microphone=(), geolocation=()"
+    Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains" "expr=%{HTTPS} == 'on'"
+</IfModule>
+
+<IfModule mod_mime.c>
+    AddType text/css .css
+    AddType application/javascript .js
+</IfModule>

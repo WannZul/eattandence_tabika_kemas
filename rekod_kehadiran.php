@@ -1,218 +1,34 @@
 <?php
+declare(strict_types=1);
+require_once __DIR__ . '/app/bootstrap.php';
+require_auth();
 
-$conn = mysqli_connect("localhost", "root", "", "face_attendance");
+$date = trim((string) ($_GET['date'] ?? ''));
+$status = trim((string) ($_GET['status'] ?? ''));
+$query = trim((string) ($_GET['q'] ?? ''));
+if ($date !== '') { $date = require_valid_date($date); }
+if ($status !== '' && !in_array($status, ['Hadir','Tidak Hadir'], true)) { throw new InvalidArgumentException('Tapis status tidak sah.'); }
+if (strlen($query) > 100) { throw new InvalidArgumentException('Carian terlalu panjang.'); }
+$page = max(1, (int) ($_GET['page'] ?? 1));
+$perPage = 20;
+$offset = ($page - 1) * $perPage;
+$like = '%' . $query . '%';
 
-if (!$conn) {
-    die("Connection Failed : " . mysqli_connect_error());
-}
+$countStmt = db()->prepare("SELECT COUNT(*) total FROM attendance a JOIN student s ON s.student_id=a.student_id WHERE (?='' OR a.date=?) AND (?='' OR a.status=?) AND (?='' OR s.name LIKE ? OR s.student_id LIKE ?)");
+$countStmt->bind_param('sssssss', $date, $date, $status, $status, $query, $like, $like);
+$countStmt->execute();
+$total = (int) ($countStmt->get_result()->fetch_assoc()['total'] ?? 0);
+$totalPages = max(1, (int) ceil($total / $perPage));
+if ($page > $totalPages) { $page = $totalPages; $offset = ($page - 1) * $perPage; }
+$stmt = db()->prepare("SELECT a.id,a.student_id,s.name,s.class,a.date,a.time,a.status,a.source FROM attendance a JOIN student s ON s.student_id=a.student_id WHERE (?='' OR a.date=?) AND (?='' OR a.status=?) AND (?='' OR s.name LIKE ? OR s.student_id LIKE ?) ORDER BY a.date DESC,COALESCE(a.time,'00:00:00') DESC,a.id DESC LIMIT ? OFFSET ?");
+$stmt->bind_param('sssssssii', $date, $date, $status, $status, $query, $like, $like, $perPage, $offset);
+$stmt->execute();
+$rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-$sql = "SELECT * FROM attendance ORDER BY id DESC";
-$result = mysqli_query($conn, $sql);
-
-$total = mysqli_num_rows($result);
-
+function records_url(int $targetPage, string $date, string $status, string $query): string { return 'rekod_kehadiran.php?' . http_build_query(array_filter(['date'=>$date,'status'=>$status,'q'=>$query,'page'=>$targetPage], static fn($v)=>$v!=='')); }
+render_header('Rekod Kehadiran', $total . ' rekod sepadan');
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Rekod Kehadiran Murid</title>
-<link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;500&display=swap" rel="stylesheet">
-
-<style>
-
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    font-family:'Lato', sans-serif;
-}
-body{
-
-    background:#eef2ff;
-
-}
-
-.container{
-
-    width:90%;
-    max-width:1050px;
-    margin:50px auto;
-    background:white;
-    padding:30px;
-    border-radius:15px;
-    box-shadow:0 8px 20px rgba(0,0,0,.1);
-
-}
-
-.title{
-
-    text-align:center;
-    color:#3f51d9;
-    margin-bottom:8px;
-    font-size:26px;
-
-}
-
-.date{
-
-    text-align:center;
-    color:#777;
-    margin-bottom:20px;
-
-}
-
-.total{
-
-    width:180px;
-    margin:0 auto 30px;
-    text-align:center;
-    background:#3f51d9;
-    color:white;
-    padding:12px;
-    border-radius:10px;
-    font-weight:bold;
-
-}
-
-table{
-
-    width:100%;
-    border-collapse:collapse;
-
-}
-
-th{
-
-    background:#3f51d9;
-    color:white;
-    padding:15px;
-
-}
-
-td{
-
-    padding:15px;
-    text-align:center;
-    border-bottom:1px solid #ddd;
-
-}
-
-tr:nth-child(even){
-
-    background:#f8f9ff;
-
-}
-
-tr:hover{
-
-    background:#edf1ff;
-
-}
-
-.status{
-
-    background:#28a745;
-    color:white;
-    padding:7px 15px;
-    border-radius:20px;
-    font-size:14px;
-    font-weight:bold;
-
-}
-
-.back{
-
-    display:inline-block;
-    margin-top:30px;
-    background:#3f51d9;
-    color:white;
-    text-decoration:none;
-    padding:12px 25px;
-    border-radius:8px;
-
-}
-
-.back:hover{
-
-    background:#2d3fc5;
-
-}
-
-.empty{
-
-    padding:30px;
-    text-align:center;
-    color:#888;
-
-}
-
-</style>
-
-</head>
-
-<body>
-    <div class="container">
-        <h2 class="title">
-            <i class="fa-solid fa-clipboard-check"></i>
-            Rekod Kehadiran Murid
-        </h2>
-        <p class="date"><?php echo date("d F Y"); ?></p>
-        <div class="total">
-            Jumlah Rekod : <?php echo $total; ?>
-        </div>
-        <table>
-            <tr>
-                <th>No</th>
-                <th>ID Murid</th>
-                <th>Nama Murid</th>
-                <th>Tarikh</th>
-                <th>Masa</th>
-                <th>Status</th>
-            </tr>
-            <?php
-            if($total>0){
-                $no=1;
-                while($row=mysqli_fetch_assoc($result)){
-                    ?>
-                    <tr>
-                        <td><?php echo $no++; ?></td>
-                        <td><?php echo $row['student_id']; ?></td>
-                        <td><?php echo $row['name']; ?></td>
-                        <td><?php echo date("d-m-Y",strtotime($row['date'])); ?></td>
-                        <td><?php echo date("h:i:s A",strtotime($row['time'])); ?></td>
-                        <td>
-                            <span class="status">
-                                <?php echo $row['status']; ?>
-                            </span>
-                        </td>
-                    </tr>
-                    <?php
-                    }
-                    }
-                    else{
-                        ?>
-                        <tr>
-                            <td colspan="6" class="empty">
-                                Tiada rekod kehadiran dijumpai.
-                            </td>
-                        </tr>
-                        <?php
-                        }
-                        ?>
-                        </table>
-                        <a href="dashboard.php" class="back">
-                            <i class="fa-solid fa-arrow-left"></i>
-                            Kembali ke Dashboard
-                        </a>
-                    </div>
-                </body>
-                </html>
-                <?php
-                mysqli_close($conn);
-                ?>
+<div class="content-stack"><section class="card no-print"><form class="toolbar" method="get"><div class="field"><label for="q">Cari murid</label><input class="input" id="q" name="q" value="<?= e($query) ?>" maxlength="100" placeholder="Nama atau ID"></div><div class="field"><label for="date">Tarikh</label><input class="input" id="date" name="date" type="date" value="<?= e($date) ?>"></div><div class="field"><label for="status">Status</label><select id="status" name="status"><option value="">Semua status</option><option value="Hadir" <?= $status==='Hadir'?'selected':'' ?>>Hadir</option><option value="Tidak Hadir" <?= $status==='Tidak Hadir'?'selected':'' ?>>Tidak Hadir</option></select></div><button class="btn btn-primary" type="submit">Tapis</button><a class="btn btn-secondary" href="rekod_kehadiran.php">Kosongkan</a></form></section>
+<section class="card"><?php if (!$rows): render_empty('Tiada rekod dijumpai', 'Ubah penapis atau rekodkan kehadiran baharu.'); else: ?><div class="table-wrap"><table class="data-table responsive"><thead><tr><th>Tarikh</th><th>ID Murid</th><th>Nama / Kelas</th><th>Masa efektif</th><th>Sumber</th><th>Status</th></tr></thead><tbody><?php foreach ($rows as $row): ?><tr><td data-label="Tarikh"><?= e(date('d/m/Y', strtotime($row['date']))) ?></td><td data-label="ID Murid"><?= e($row['student_id']) ?></td><td data-label="Nama / Kelas"><strong><?= e($row['name']) ?></strong><br><small class="muted"><?= e($row['class']) ?></small></td><td data-label="Masa efektif"><?= e($row['time'] ? date('h:i:s A', strtotime($row['time'])) : '—') ?></td><td data-label="Sumber"><?= e($row['source']==='kiosk'?'Kiosk wajah':'Manual') ?></td><td data-label="Status"><?= status_badge($row['status']) ?></td></tr><?php endforeach; ?></tbody></table></div>
+<?php if ($totalPages>1): ?><nav class="pagination no-print" aria-label="Halaman rekod"><?php if ($page>1): ?><a href="<?= e(records_url($page-1,$date,$status,$query)) ?>">Sebelum</a><?php endif; ?><span class="current">Halaman <?= $page ?> / <?= $totalPages ?></span><?php if ($page<$totalPages): ?><a href="<?= e(records_url($page+1,$date,$status,$query)) ?>">Seterusnya</a><?php endif; ?></nav><?php endif; ?><?php endif; ?></section></div>
+<?php render_footer(); ?>

@@ -1,0 +1,32 @@
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.local
+
+# Private biometric/runtime data
+/storage/private/
+/dataset/
+/kiosk_cache/
+*.yml.cache
+*.xml.cache
+*.trainer
+*.model
+
+# Runtime output
+/logs/
+*.log
+*.pid
+*.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
