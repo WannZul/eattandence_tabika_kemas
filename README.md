@@ -63,6 +63,34 @@ Aliran kiosk:
 
 `face_status` kembali `pending` selepas replacement dan hanya laporan kiosk untuk fingerprint semasa boleh menetapkan `ready`. Jalankan ejen dengan `APP_API_URL`, `KIOSK_API_KEY`, `KIOSK_ID`, dan pilihan kamera dalam `.env.example`. Cache kiosk ialah biometrik sensitif.
 
+### Butang satu klik pada Windows localhost
+
+Halaman **Kiosk Wajah** mempunyai butang **Mulakan Imbasan Wajah** untuk akaun `admin` dan `teacher`. Butang ini hanya membuka Python apabila pelayan PHP, projek, `.venv` dan webcam berada pada PC Windows interaktif yang sama. Ia tetap dimatikan secara lalai dan tidak boleh membuka kamera laptop pengguna daripada hosting awam.
+
+Sediakan Python sekali dalam **VS Code PowerShell**, dengan terminal berada di folder projek:
+
+```powershell
+py -3.11 -m venv .venv
+& ".\.venv\Scripts\python.exe" -m pip install -r ".\requirements.txt"
+```
+
+Untuk ujian satu PC, hentikan pelayan lama dengan `Ctrl+C`, kemudian mulakan PHP dari terminal yang sama dengan konfigurasi berikut:
+
+```powershell
+$env:APP_ENV = "development"
+$env:APP_BASE_URL = "http://127.0.0.1:8000"
+$env:LOGIN_RATE_LIMIT_SECRET = "use-a-local-random-secret-at-least-32-chars"
+$env:KIOSK_API_KEY = "use-an-independent-local-key-at-least-24-chars"
+$env:ALLOW_INSECURE_KIOSK_API = "true"
+$env:ALLOW_LOCAL_KIOSK_LAUNCH = "true"
+$env:LOCAL_KIOSK_ID = "same-pc-kiosk"
+& "C:\xampp\php\php.exe" -S 127.0.0.1:8000
+```
+
+Buka `http://127.0.0.1:8000`, log masuk, pilih **Kiosk Wajah**, kemudian klik butang. Pelancar menolak semua permintaan production dan permintaan yang tidak datang terus daripada alamat loopback, walaupun flag tersalah diaktifkan. `scan.php` mengesahkan peranan, CSRF, Windows, `.venv`, Python 3.11, `cv2.face`, kunci dan URL; ia mewariskan konfigurasi kepada `run_face.bat` tanpa menulis secret ke fail. BAT sentiasa menggunakan `.venv\Scripts\python.exe`. Lock fail OS menghalang dua kamera kiosk berjalan serentak. Mesej web hanya mengesahkan arahan Windows dihantar; keputusan API, sync, latihan dan kamera sebenar dipaparkan dalam tetingkap Python. Tetingkap itu perlu ditutup dengan **Q**.
+
+Jika laman dijalankan oleh Apache sebagai Windows service, proses service biasanya tidak dibenarkan memaparkan GUI pada desktop pengguna. Untuk butang satu klik localhost, gunakan PHP built-in server daripada VS Code seperti di atas. Pada domain/hosting, kekalkan `ALLOW_LOCAL_KIOSK_LAUNCH=false` dan jalankan ejen pada PC kamera secara manual atau melalui kaedah pengurusan peranti yang diluluskan.
+
 ## Kehadiran manual dan laporan
 
 `attendance` kekal snapshot akhir satu murid/hari. Setiap perubahan manual kini memasukkan `manual_attendance_event` immutable dan mengemas kini snapshot dalam transaksi sama di bawah lock murid/baris. Acara menyimpan status/masa/sumber/aktor terdahulu, status/masa efektif baharu, masa tindakan DB, pengguna dan nota pilihan.

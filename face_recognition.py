@@ -36,6 +36,31 @@ CAMERA_FAILURE_LIMIT = max(3, int(os.getenv("CAMERA_FAILURE_LIMIT", "10")))
 CAMERA_REOPEN_ATTEMPTS = max(1, int(os.getenv("CAMERA_REOPEN_ATTEMPTS", "3")))
 CAMERA_FAILURE_BACKOFF = max(0.05, float(os.getenv("CAMERA_FAILURE_BACKOFF", "0.2")))
 ALLOW_HTTP = os.getenv("APP_ALLOW_INSECURE_HTTP", "false").lower() in {"1", "true", "yes"}
+_INSTANCE_LOCK = None
+
+
+def acquire_single_instance() -> None:
+    """Prevent repeated web-button clicks from opening multiple camera agents."""
+    global _INSTANCE_LOCK
+    CACHE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    lock_path = CACHE_DIR / "kiosk-instance.lock"
+    handle = lock_path.open("a+b")
+    try:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"0")
+            handle.flush()
+        handle.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, BlockingIOError) as exc:
+        handle.close()
+        raise RuntimeError("Kiosk sudah berjalan pada komputer ini. Tutup tetingkap sedia ada sebelum membuka yang baharu.") from exc
+    _INSTANCE_LOCK = handle
 
 
 def fail(message: str) -> None:
@@ -47,7 +72,7 @@ def validate_configuration() -> None:
     if not API_URL or not API_KEY:
         fail("APP_API_URL dan KIOSK_API_KEY mesti ditetapkan.")
     parsed = urlparse(API_URL)
-    if parsed.scheme != "https" and not (ALLOW_HTTP and parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1"}):
+    if parsed.scheme != "https" and not (ALLOW_HTTP and parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"}):
         fail("APP_API_URL mesti menggunakan HTTPS. HTTP hanya dibenarkan untuk localhost dengan APP_ALLOW_INSECURE_HTTP=true.")
     if len(API_KEY) < 24:
         fail("KIOSK_API_KEY terlalu pendek (minimum 24 aksara).")
@@ -263,6 +288,7 @@ def failure_frame(message: str) -> np.ndarray:
 
 def main() -> None:
     validate_configuration()
+    acquire_single_instance()
     client = session()
     health = api_json(client, "GET", params={"action": "health"})
     print(f"API aktif: {health.get('server_time')} ({health.get('timezone')})")
